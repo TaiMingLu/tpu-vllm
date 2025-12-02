@@ -25,7 +25,7 @@ TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MIN_TOKENS=1024
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=2048
-GEN_BATCH_SIZE=10000
+GEN_BATCH_SIZE=2000
 TENSOR_PARALLEL_SIZE=1
 TEMPERATURE=1.2                # Lower = more focused, less random (was 1.0)
 TOP_P=0.9                      # Slightly more restrictive (was 0.95)

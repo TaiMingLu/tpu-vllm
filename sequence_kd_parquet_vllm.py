@@ -38,7 +38,6 @@ class Request:
     prefix_text: str
     prompt_token_ids: List[int]
     max_output_tokens: int
-    full_text: str  # Original full document
 
 
 def get_completed_row_ranges(gcs_bucket_path, parquet_basename) -> List[tuple]:
@@ -112,7 +111,6 @@ def run_inference_batch(llm, requests, tokenizer, sampling_params):
             "prefix_start_index": req.prefix_start_index,
             "prefix": req.prefix_text,
             "generated": generated,
-            "full_text": req.full_text,
         })
 
     return results
@@ -259,7 +257,6 @@ def main(config):
                     prefix_text=prefix_text,
                     prompt_token_ids=prefix_tokens,
                     max_output_tokens=max_output,
-                    full_text=text,
                 ))
 
             if not requests:
