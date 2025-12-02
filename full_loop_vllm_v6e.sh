@@ -4,7 +4,10 @@ set -euo pipefail
 # Get the directory where this script lives
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Change to a different directory to avoid import conflicts
+# Copy Python script to work-dir to avoid import conflicts with local tpu_inference/
+cp "${SCRIPT_DIR}/sequence_kd_parquet_vllm.py" ~/work-dir/
+
+# Change to work-dir
 cd ~/work-dir
 
 # Environment variables
@@ -49,8 +52,8 @@ mkdir -p /tmp/sequence-kd-vllm
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${GCS_BUCKET_PATH}"
 
-# Run generation
-python3 -u "${SCRIPT_DIR}/sequence_kd_parquet_vllm.py" \
+# Run generation (using local copy in work-dir)
+python3 -u sequence_kd_parquet_vllm.py \
   --input-dir "${DATASET_PATH}" \
   --output-dir "${OUTPUT_DIR}" \
   --model-path "${MODEL_PATH}" \
