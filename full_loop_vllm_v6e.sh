@@ -24,14 +24,14 @@ MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-fine
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=4096
-GEN_BATCH_SIZE=128
+GEN_BATCH_SIZE=256
 TENSOR_PARALLEL_SIZE=1
-TEMPERATURE=0.8
+TEMPERATURE=1.0
 TOP_P=0.95
 MAX_EXAMPLES=20000000
 
 OUTPUT_DIR="/tmp/sequence-kd-vllm/output"
-GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm-T50BS42"
+GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm-T50BS42_new"
 
 printf '\n=== Sequence KD Config (vLLM) ===\n'
 printf 'Run name: %s\n' "$RUN_NAME"

@@ -92,8 +92,8 @@ def run_inference_batch(llm, requests, tokenizer, sampling_params):
     if not requests:
         return []
 
-    # Prepare prompts from tokens
-    prompts = [tokenizer.decode(req.prompt_token_ids, skip_special_tokens=False)
+    # Prepare prompts from tokens (skip special tokens since model wasn't trained with them)
+    prompts = [tokenizer.decode(req.prompt_token_ids, skip_special_tokens=True)
                for req in requests]
 
     # Generate completions
