@@ -10,15 +10,14 @@ gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
   --worker=all \
   --ssh-key-file="~/.ssh/id_rsa" \
   --command='
-    rm -rf ~/vllm ~/tpu-inference
-    git clone https://github.com/TaiMingLu/tpu-vllm.git ~/tpu-inference
-    python3.11 -m venv ~/vllm_env --symlinks
-    source ~/vllm_env/bin/activate
-    pip install --upgrade pip setuptools wheel
-    cd ~/tpu-inference
-    pip install -r requirements_vllm.txt
+    sudo apt-get update && sudo apt-get install -y python3.12 python3.12-venv
+    rm -rf ~/work-dir
+    mkdir ~/work-dir
+    cd ~/work-dir
+    python3.12 -m venv vllm_env --symlinks
+    source vllm_env/bin/activate
     pip install vllm-tpu
-    pip install -e .
+    python -c "import vllm; import tpu_inference; print(\"vLLM ready!\")"
     '
 
 gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
