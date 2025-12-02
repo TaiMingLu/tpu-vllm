@@ -24,10 +24,13 @@ MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-fine
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=4096
-GEN_BATCH_SIZE=256
+GEN_BATCH_SIZE=1024
 TENSOR_PARALLEL_SIZE=1
 TEMPERATURE=1.0
 TOP_P=0.95
+REPETITION_PENALTY=1.2         # Penalize repeated tokens (1.0 = no penalty, 1.1 = mild penalty) For any token that has already appeared in the context (prompt + generated so far), vLLM scales its logit by 1 / repetition_penalty (or similar), effectively lowering its probability.
+FREQUENCY_PENALTY=0.5          # Optional: penalize based on frequency (-2.0 to 2.0) For each token, it subtracts something proportional to how many times that token has appeared so far.
+PRESENCE_PENALTY=0.3           # Optional: penalize any repeated tokens (-2.0 to 2.0) Presence penalty is like a one-time “entry fee” for using a token: as soon as a token has appeared at least once, its logit is decreased by a fixed amount, regardless of how many times after that.
 MAX_EXAMPLES=20000000
 
 OUTPUT_DIR="/tmp/sequence-kd-vllm/output"
@@ -66,6 +69,9 @@ python3 -u sequence_kd_parquet_vllm.py \
   --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \
   --temperature ${TEMPERATURE} \
   --top-p ${TOP_P} \
+  --repetition-penalty ${REPETITION_PENALTY} \
+  --frequency-penalty ${FREQUENCY_PENALTY} \
+  --presence-penalty ${PRESENCE_PENALTY} \
   --gcs-bucket-path "${GCS_BUCKET_PATH}" \
   --save-every-n-batches 4
 

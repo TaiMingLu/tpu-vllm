@@ -148,6 +148,9 @@ def main(config):
     sampling_params = SamplingParams(
         temperature=config.temperature,
         top_p=config.top_p,
+        repetition_penalty=config.repetition_penalty,
+        frequency_penalty=config.frequency_penalty,
+        presence_penalty=config.presence_penalty,
         max_tokens=config.max_target_length,  # Will be overridden per request
         skip_special_tokens=True,
     )
@@ -256,6 +259,9 @@ def main(config):
                 batch_sampling_params = SamplingParams(
                     temperature=config.temperature,
                     top_p=config.top_p,
+                    repetition_penalty=config.repetition_penalty,
+                    frequency_penalty=config.frequency_penalty,
+                    presence_penalty=config.presence_penalty,
                     max_tokens=max_tokens_in_batch,
                     skip_special_tokens=True,
                 )
@@ -299,6 +305,9 @@ if __name__ == "__main__":
     parser.add_argument("--tensor-parallel-size", type=int, default=1, help="Tensor parallel size")
     parser.add_argument("--temperature", type=float, default=0.8, help="Sampling temperature")
     parser.add_argument("--top-p", type=float, default=0.95, help="Top-p sampling")
+    parser.add_argument("--repetition-penalty", type=float, default=1.0, help="Repetition penalty (1.0 = no penalty)")
+    parser.add_argument("--frequency-penalty", type=float, default=0.0, help="Frequency penalty (-2.0 to 2.0)")
+    parser.add_argument("--presence-penalty", type=float, default=0.0, help="Presence penalty (-2.0 to 2.0)")
     parser.add_argument("--gcs-bucket-path", type=str, default=None, help="Path to mounted GCS bucket for final output")
     parser.add_argument("--save-every-n-batches", type=int, default=4, help="Save checkpoint every N batches")
 
