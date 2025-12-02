@@ -37,6 +37,7 @@ class Request:
     prefix_text: str
     prompt_token_ids: List[int]
     max_output_tokens: int
+    full_text: str  # Original full document before truncation
 
 
 def get_completed_row_ranges(gcs_bucket_path, parquet_basename) -> List[tuple]:
@@ -109,6 +110,7 @@ def run_inference_batch(llm, requests, tokenizer, sampling_params):
             "row_idx": req.row_idx,
             "prefix": req.prefix_text,
             "generated": generated,
+            "full_text": req.full_text,  # Include original full document
         })
 
     return results
@@ -223,7 +225,7 @@ def main(config):
                     continue
 
                 if len(tokens) > config.max_prefill_length:
-                    tokens = tokens[:config.max_prefill_length]
+                    tokens = tokens[-config.max_prefill_length:]
 
                 max_output = config.max_target_length - len(tokens)
                 if max_output <= 0:
@@ -236,6 +238,7 @@ def main(config):
                     prefix_text=prefix_text,
                     prompt_token_ids=tokens,
                     max_output_tokens=max_output,
+                    full_text=text,  # Preserve original full document
                 ))
 
             if not requests:
@@ -274,9 +277,9 @@ def main(config):
             temp_file = os.path.join(config.output_dir, chunk_name)
 
             print(f"Saving {len(all_results)} results to {temp_file}")
-            with open(temp_file, "w") as f:
+            with open(temp_file, "w", encoding="utf-8") as f:
                 for result in all_results:
-                    f.write(json.dumps(result) + "\n")
+                    f.write(json.dumps(result, ensure_ascii=False) + "\n")
 
             # Copy to bucket
             if config.gcs_bucket_path:
