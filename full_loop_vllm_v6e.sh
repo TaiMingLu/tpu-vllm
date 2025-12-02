@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
-SCRIPT_DIR=$(pwd)
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to a different directory to avoid import conflicts
+cd ~/work-dir
 
 # Environment variables
 HF_ACCESS_TOKEN=${HF_ACCESS_TOKEN:-""}
