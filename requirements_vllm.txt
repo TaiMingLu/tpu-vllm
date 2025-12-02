@@ -18,10 +18,10 @@ chex==0.1.90
 orbax-checkpoint==0.11.20
 
 # PyTorch and torchax
-torch==2.8.0
+torch==2.9.0
 torchvision==0.24.0
 torchax==0.0.7
-triton==3.4.0
+triton==3.5.0
 
 # vLLM (install from source or specific version)
 # vllm==0.6.6  # Uncomment when installing from PyPI
