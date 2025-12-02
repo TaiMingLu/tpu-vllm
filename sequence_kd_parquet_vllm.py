@@ -264,7 +264,9 @@ def main(config):
                 break
 
             batch_count += 1
-            print(f"\nBatch {batch_count}: {len(requests)} requests from rows {batch_start_row}-{batch_end_row}")
+            rows_scanned = batch_end_row - batch_start_row
+            rows_skipped = rows_scanned - len(requests)
+            print(f"Batch {batch_count}: rows [{batch_start_row}→{batch_end_row}] scanned={rows_scanned} valid={len(requests)} skipped={rows_skipped}")
 
             # Generate for this batch
             max_tokens_in_batch = max(req.max_output_tokens for req in requests)
