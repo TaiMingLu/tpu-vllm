@@ -1,12 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# TPU Configuration
-TPU_NAME="taiming-v6e-8_000103"
-ZONE="europe-west4-a"
-PROJECT_ID="vision-mix"
+cd "$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_DIR=$(pwd)
 
-# Environment variables (replicate MaxText setup)
+# Environment variables
 HF_ACCESS_TOKEN=${HF_ACCESS_TOKEN:-""}
 BUCKET_NAME=${BUCKET_NAME:-taiming_europe_west4_a}
 
@@ -40,74 +38,33 @@ printf 'Output dir: %s\n' "$OUTPUT_DIR"
 printf 'GCS bucket path: %s\n' "$GCS_BUCKET_PATH"
 printf '==================================\n\n'
 
-chmod 600 ~/.ssh/id_rsa
-chmod 600 ~/.ssh/google_rsa
+# Activate vLLM environment
+source ~/work-dir/vllm_env/bin/activate
 
-# Copy the Python script to TPU
-echo "Copying generation script to TPU..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-gcloud compute tpus tpu-vm scp \
-  --project=${PROJECT_ID} \
-  --zone=${ZONE} \
-  --worker=0 \
-  "${SCRIPT_DIR}/sequence_kd_parquet_vllm.py" \
-  terry@${TPU_NAME}:~/work-dir/sequence_kd_parquet_vllm.py
+# Create directories
+mkdir -p /tmp/sequence-kd-vllm
+mkdir -p "${OUTPUT_DIR}"
+mkdir -p "${GCS_BUCKET_PATH}"
 
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to copy script to TPU"
-    exit 1
-fi
+# Run generation
+python3 -u "${SCRIPT_DIR}/sequence_kd_parquet_vllm.py" \
+  --input-dir "${DATASET_PATH}" \
+  --output-dir "${OUTPUT_DIR}" \
+  --model-path "${MODEL_PATH}" \
+  --tokenizer-path "${TOKENIZER_PATH}" \
+  --hf-access-token "${HF_ACCESS_TOKEN}" \
+  --text-column "${TEXT_COLUMN}" \
+  --batch-size ${GEN_BATCH_SIZE} \
+  --max-prefill-length ${MAX_PREFILL_LENGTH} \
+  --max-target-length ${MAX_TARGET_LENGTH} \
+  --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \
+  --temperature ${TEMPERATURE} \
+  --top-p ${TOP_P} \
+  --gcs-bucket-path "${GCS_BUCKET_PATH}" \
+  --save-every-n-batches 4
 
-echo "✓ Script copied successfully"
 echo
-
-# Run on TPU
-echo "Running sequence KD generation on TPU..."
 echo "================================================================================"
-gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
-  --project=${PROJECT_ID} --zone=${ZONE} \
-  --worker=0 \
-  --ssh-key-file="~/.ssh/id_rsa" \
-  --command="
-    set -euo pipefail
-
-    # Activate vLLM environment
-    source ~/work-dir/vllm_env/bin/activate
-    cd ~/work-dir
-
-    # Create directories
-    mkdir -p /tmp/sequence-kd
-    mkdir -p '${OUTPUT_DIR}'
-    mkdir -p '${GCS_BUCKET_PATH}'
-
-    # Run generation
-    python3 -u sequence_kd_parquet_vllm.py \\
-      --input-dir '${DATASET_PATH}' \\
-      --output-dir '${OUTPUT_DIR}' \\
-      --model-path '${MODEL_PATH}' \\
-      --tokenizer-path '${TOKENIZER_PATH}' \\
-      --hf-access-token '${HF_ACCESS_TOKEN}' \\
-      --text-column '${TEXT_COLUMN}' \\
-      --batch-size ${GEN_BATCH_SIZE} \\
-      --max-prefill-length ${MAX_PREFILL_LENGTH} \\
-      --max-target-length ${MAX_TARGET_LENGTH} \\
-      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \\
-      --temperature ${TEMPERATURE} \\
-      --top-p ${TOP_P} \\
-      --gcs-bucket-path '${GCS_BUCKET_PATH}' \\
-      --save-every-n-batches 4
-  "
-
-if [ $? -eq 0 ]; then
-    echo
-    echo "================================================================================"
-    echo "✓ Sequence KD generation completed successfully!"
-    echo "Output saved to: ${GCS_BUCKET_PATH}"
-    echo "================================================================================"
-else
-    echo
-    echo "================================================================================"
-    echo "✗ Generation failed. Check the output above for errors."
-    echo "================================================================================"
-    exit 1
-fi
+echo "✓ Sequence KD generation completed successfully!"
+echo "Output saved to: ${GCS_BUCKET_PATH}"
+echo "================================================================================"

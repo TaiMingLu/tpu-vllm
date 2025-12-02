@@ -28,3 +28,15 @@ gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
     source ~/vllm_env/bin/activate
     python -c "import vllm; import tpu_inference; print(\"Ready!\")"
     '
+
+
+gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
+  --project=${PROJECT_ID} --zone=${ZONE} \
+  --worker=0 \
+  --ssh-key-file="~/.ssh/id_rsa" \
+  --command='
+    rm -rf ~/tpu-inference
+    git clone https://github.com/TaiMingLu/tpu-vllm.git ~/tpu-inference
+    cd ~/tpu-inference
+    ./full_loop_vllm_v6e.sh
+    '

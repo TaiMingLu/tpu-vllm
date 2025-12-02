@@ -56,19 +56,23 @@ GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT
 
 ### Quick Start
 
-```bash
-# Make executable
-chmod +x full_loop_vllm_v6e.sh
+**On your TPU**, run:
 
-# Run
+```bash
+# Clone the repo
+rm -rf ~/tpu-inference
+git clone https://github.com/TaiMingLu/tpu-vllm.git ~/tpu-inference
+cd ~/tpu-inference
+
+# Run the script
 ./full_loop_vllm_v6e.sh
 ```
 
 The script will:
-1. Copy the Python script to your TPU
-2. SSH into the TPU
-3. Activate vLLM environment
-4. Run generation with exact same parameters as MaxText version
+1. Activate vLLM environment
+2. Create necessary directories
+3. Run generation with exact same parameters as MaxText version
+4. Save results to GCS bucket
 
 ### Direct Python Usage
 
@@ -139,18 +143,20 @@ Format: `{original_filename}_rows_{start:07d}_{end:07d}.jsonl`
 
 ## Distributed Processing
 
-To run multiple instances in parallel (same as MaxText):
+To run multiple instances in parallel (same as MaxText), **on your TPU**:
 
 ```bash
-# Terminal 1
-./full_loop_vllm_v6e.sh
+# Terminal 1 (SSH session 1)
+cd ~/tpu-inference && ./full_loop_vllm_v6e.sh
 
-# Terminal 2
-./full_loop_vllm_v6e.sh
+# Terminal 2 (SSH session 2)
+cd ~/tpu-inference && ./full_loop_vllm_v6e.sh
 
-# Terminal 3
-./full_loop_vllm_v6e.sh
+# Terminal 3 (SSH session 3)
+cd ~/tpu-inference && ./full_loop_vllm_v6e.sh
 ```
+
+Or run across multiple TPU VMs for even faster processing.
 
 Each instance will:
 - Shuffle parquet files randomly
