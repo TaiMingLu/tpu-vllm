@@ -175,13 +175,18 @@ def main(config):
         # Get row count from metadata (instant, no data loading)
         total_rows = pq.ParquetFile(parquet_path).metadata.num_rows
 
-        # Check completed row ranges
-        completed_ranges = get_completed_row_ranges(config.gcs_bucket_path, filename)
-        missing_ranges = get_missing_row_ranges(completed_ranges, total_rows, chunk_size)
+        # Check completed row ranges (if skip-completed is enabled)
+        if config.skip_completed:
+            completed_ranges = get_completed_row_ranges(config.gcs_bucket_path, filename)
+            missing_ranges = get_missing_row_ranges(completed_ranges, total_rows, chunk_size)
 
-        if not missing_ranges:
-            print(f"Skipping {filename} - all {total_rows} rows completed")
-            continue
+            if not missing_ranges:
+                print(f"Skipping {filename} - all {total_rows} rows completed")
+                continue
+        else:
+            # Process all rows without checking completion
+            completed_ranges = []
+            missing_ranges = [(0, total_rows)]
 
         total_chunks = (total_rows + chunk_size - 1) // chunk_size
         completed_rows = sum(end - start for start, end in completed_ranges)
@@ -205,11 +210,12 @@ def main(config):
 
         # Process each missing range
         for start_row, end_row in missing_ranges:
-            # Re-check if this range was completed by another instance
-            current_completed = get_completed_row_ranges(config.gcs_bucket_path, filename)
-            if any(s <= start_row and e >= end_row for s, e in current_completed):
-                print(f"Rows {start_row}-{end_row} completed by another instance, skipping")
-                continue
+            # Re-check if this range was completed by another instance (if skip-completed is enabled)
+            if config.skip_completed:
+                current_completed = get_completed_row_ranges(config.gcs_bucket_path, filename)
+                if any(s <= start_row and e >= end_row for s, e in current_completed):
+                    print(f"Rows {start_row}-{end_row} completed by another instance, skipping")
+                    continue
 
             print(f"\nProcessing rows {start_row}-{end_row}")
 
@@ -313,6 +319,7 @@ if __name__ == "__main__":
     parser.add_argument("--presence-penalty", type=float, default=0.0, help="Presence penalty (-2.0 to 2.0)")
     parser.add_argument("--gcs-bucket-path", type=str, default=None, help="Path to mounted GCS bucket for final output")
     parser.add_argument("--save-every-n-batches", type=int, default=4, help="Save checkpoint every N batches")
+    parser.add_argument("--skip-completed", type=bool, default=False, help="Skip already completed rows (set to True to enable resumption)")
 
     config = parser.parse_args()
     main(config)

@@ -40,3 +40,26 @@ gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
     cd ~/tpu-inference
     ./full_loop_vllm_v6e.sh
     '
+
+
+
+
+
+gcloud compute tpus tpu-vm ssh terry@${TPU_NAME} \
+  --project=${PROJECT_ID} --zone=${ZONE} \
+  --worker=0 \
+  --ssh-key-file="~/.ssh/id_rsa" \
+  --command='
+    source ~/vllm_env/bin/activate
+    rm -rf ~/tpu-inference
+    git clone https://github.com/TaiMingLu/tpu-vllm.git ~/tpu-inference
+    cd ~/tpu-inference
+    # Run analysis
+    python3 analyze_dataset_tokens.py \\
+      --input-dir /home/terry/gcs-bucket/HF_HOME/finewebedu/sample/100BT \\
+      --tokenizer-path /home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B \\
+      --text-column text \\
+      --num-samples 10000 \\
+      --output /tmp/token_stats.json \\
+      --random-seed 42
+    '
