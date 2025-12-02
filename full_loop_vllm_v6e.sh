@@ -25,12 +25,12 @@ TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MIN_TOKENS=1024
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=2048
-GEN_BATCH_SIZE=1024
+GEN_BATCH_SIZE=10000
 TENSOR_PARALLEL_SIZE=1
 TEMPERATURE=1.2                # Lower = more focused, less random (was 1.0)
 TOP_P=0.9                      # Slightly more restrictive (was 0.95)
 REPETITION_PENALTY=1.5         # Very strong penalty (was 1.2, try 1.3-1.5)
-FREQUENCY_PENALTY=1.5          # Strong frequency penalty (was 1.0, try 1.5-2.0)
+FREQUENCY_PENALTY=1.8          # Strong frequency penalty (was 1.0, try 1.5-2.0)
 PRESENCE_PENALTY=1.0           # Strong presence penalty (was 0.5, try 1.0)
 MAX_EXAMPLES=20000000
 
