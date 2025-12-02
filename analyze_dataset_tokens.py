@@ -15,55 +15,75 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import transformers
+import pyarrow.dataset as ds
 
 
-def get_parquet_files(input_dir: str) -> List[Path]:
-    """Get list of all parquet files in directory."""
-    input_path = Path(input_dir)
-    parquet_files = sorted(input_path.glob("*.parquet"))
-    return parquet_files
-
-
-def sample_rows_from_parquets(
-    parquet_files: List[Path],
+def sample_rows_from_parquet_dataset(
+    input_dir: str,
     num_samples: int,
-    text_column: str
+    text_column: str,
+    random_seed: int = 42
 ) -> List[str]:
-    """Randomly sample rows from parquet files."""
+    """Efficiently sample rows from parquet dataset without opening files multiple times."""
 
-    print(f"\nSampling {num_samples} rows from {len(parquet_files)} parquet files...")
+    print(f"\nLoading parquet dataset from {input_dir}...")
 
-    # Calculate samples per file
-    samples_per_file = max(1, num_samples // len(parquet_files))
-    extra_samples = num_samples % len(parquet_files)
+    # Create dataset from directory (treats all parquet files as one dataset)
+    dataset = ds.dataset(input_dir, format='parquet')
 
+    # Count total rows efficiently (without loading data)
+    total_rows = dataset.count_rows()
+    print(f"Found {total_rows:,} total rows across all parquet files")
+
+    # Generate random row indices to sample
+    print(f"Sampling {num_samples} random rows...")
+    np.random.seed(random_seed)
+
+    if num_samples >= total_rows:
+        print(f"Warning: Requested {num_samples} samples but only {total_rows} available")
+        sample_indices = np.arange(total_rows)
+    else:
+        sample_indices = np.random.choice(total_rows, size=num_samples, replace=False)
+
+    sample_indices = sorted(sample_indices)  # Sort for efficient sequential reading
+
+    # Read only the text column for sampled rows
+    print(f"Reading sampled rows from dataset...")
     all_texts = []
 
-    for i, parquet_file in enumerate(tqdm(parquet_files, desc="Sampling files")):
-        # How many samples from this file
-        n_from_file = samples_per_file + (1 if i < extra_samples else 0)
+    # Read in batches for efficiency
+    batch_size = 10000
+    scanner = dataset.scanner(columns=[text_column])
 
-        try:
-            # Read parquet
-            df = pd.read_parquet(parquet_file)
+    current_idx = 0
+    sample_set = set(sample_indices)
 
-            if text_column not in df.columns:
-                print(f"Warning: Column '{text_column}' not found in {parquet_file.name}")
-                continue
+    for batch in tqdm(scanner.to_batches(batch_size=batch_size), desc="Processing batches"):
+        # Convert batch to pandas for easier handling
+        df = batch.to_pandas()
 
-            # Sample randomly
-            if len(df) < n_from_file:
-                sampled = df[text_column].tolist()
-            else:
-                sampled = df[text_column].sample(n=n_from_file, random_state=42).tolist()
+        # Find which rows in this batch we want to sample
+        batch_end = current_idx + len(df)
+        rows_to_sample = [idx - current_idx for idx in sample_set
+                          if current_idx <= idx < batch_end]
+
+        if rows_to_sample:
+            # Extract the sampled rows
+            sampled = df[text_column].iloc[rows_to_sample].tolist()
 
             # Filter out non-string or empty
-            sampled = [t for t in sampled if isinstance(t, str) and t.strip()]
+            sampled = [t for t in sampled if isinstance(t, str) and len(t.strip()) > 0]
             all_texts.extend(sampled)
 
-        except Exception as e:
-            print(f"Error reading {parquet_file.name}: {e}")
-            continue
+            # Remove sampled indices from set
+            for idx in rows_to_sample:
+                sample_set.discard(current_idx + idx)
+
+            # Early exit if we've collected all samples
+            if not sample_set:
+                break
+
+        current_idx = batch_end
 
     print(f"Collected {len(all_texts)} text samples")
     return all_texts
@@ -215,19 +235,12 @@ def main():
     random.seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-    # Get parquet files
-    parquet_files = get_parquet_files(args.input_dir)
-    if not parquet_files:
-        print(f"Error: No parquet files found in {args.input_dir}")
-        return
-
-    print(f"Found {len(parquet_files)} parquet files")
-
-    # Sample texts
-    texts = sample_rows_from_parquets(
-        parquet_files,
+    # Sample texts directly from dataset (efficient - no multiple file opens)
+    texts = sample_rows_from_parquet_dataset(
+        args.input_dir,
         args.num_samples,
-        args.text_column
+        args.text_column,
+        args.random_seed
     )
 
     if not texts:

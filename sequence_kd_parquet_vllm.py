@@ -34,10 +34,10 @@ from tqdm import tqdm
 class Request:
     parquet_file: str
     row_idx: int
+    prefix_start_index: int  # Token position where prefix starts
     prefix_text: str
     prompt_token_ids: List[int]
     max_output_tokens: int
-    full_text: str  # Original full document before truncation
 
 
 def get_completed_row_ranges(gcs_bucket_path, parquet_basename) -> List[tuple]:
@@ -108,9 +108,9 @@ def run_inference_batch(llm, requests, tokenizer, sampling_params):
         results.append({
             "parquet_file": os.path.basename(req.parquet_file),
             "row_idx": req.row_idx,
+            "prefix_start_index": req.prefix_start_index,
             "prefix": req.prefix_text,
             "generated": generated,
-            "full_text": req.full_text,  # Include original full document
         })
 
     return results
@@ -205,23 +205,21 @@ def main(config):
             print(f"Column '{config.text_column}' not found, skipping")
             continue
 
-        # Shuffle missing ranges so different instances work on different chunks
-        random.shuffle(missing_ranges)
+        # Process file by collecting batches of valid rows (with enough tokens)
+        # We need to iterate through rows to find enough valid ones for each batch
+        current_row = 0
+        batch_count = 0
 
-        # Process each missing range
-        for start_row, end_row in missing_ranges:
-            # Re-check if this range was completed by another instance (if skip-completed is enabled)
-            if config.skip_completed:
-                current_completed = get_completed_row_ranges(config.gcs_bucket_path, filename)
-                if any(s <= start_row and e >= end_row for s, e in current_completed):
-                    print(f"Rows {start_row}-{end_row} completed by another instance, skipping")
-                    continue
-
-            print(f"\nProcessing rows {start_row}-{end_row}")
-
-            # Build requests for this row range
+        while current_row < total_rows:
+            # Collect batch_size valid rows (or until end of file)
             requests = []
-            for idx in range(start_row, end_row):
+            batch_start_row = None
+            batch_end_row = None
+
+            while len(requests) < config.batch_size and current_row < total_rows:
+                idx = current_row
+                current_row += 1
+
                 text = df.iloc[idx][config.text_column]
                 if not isinstance(text, str) or not text.strip():
                     continue
@@ -230,61 +228,65 @@ def main(config):
                 if not tokens:
                     continue
 
-                if len(tokens) > config.max_prefill_length:
-                    tokens = tokens[-config.max_prefill_length:]
+                # Skip rows with insufficient tokens
+                if len(tokens) < config.min_tokens:
+                    continue
 
-                max_output = config.max_target_length - len(tokens)
+                # Track actual row range
+                if batch_start_row is None:
+                    batch_start_row = idx
+                batch_end_row = idx + 1
+
+                # Randomly select prefix position
+                max_start = len(tokens) - config.max_prefill_length
+                if max_start > 0:
+                    prefix_start = random.randint(0, max_start)
+                else:
+                    prefix_start = 0
+
+                prefix_tokens = tokens[prefix_start:prefix_start + config.max_prefill_length]
+                max_output = config.max_target_length - len(prefix_tokens)
                 if max_output <= 0:
                     continue
 
-                prefix_text = tokenizer.decode(tokens, skip_special_tokens=True)
+                prefix_text = tokenizer.decode(prefix_tokens, skip_special_tokens=True)
                 requests.append(Request(
                     parquet_file=parquet_path,
                     row_idx=idx,
+                    prefix_start_index=prefix_start,
                     prefix_text=prefix_text,
-                    prompt_token_ids=tokens,
+                    prompt_token_ids=prefix_tokens,
                     max_output_tokens=max_output,
-                    full_text=text,  # Preserve original full document
                 ))
 
             if not requests:
-                print(f"No valid requests for rows {start_row}-{end_row}")
-                continue
+                # No more valid rows in this file
+                break
 
-            print(f"Built {len(requests)} requests")
+            batch_count += 1
+            print(f"\nBatch {batch_count}: {len(requests)} requests from rows {batch_start_row}-{batch_end_row}")
 
-            # Process in batches
-            all_results = []
-            total_batches = (len(requests) + config.batch_size - 1) // config.batch_size
+            # Generate for this batch
+            max_tokens_in_batch = max(req.max_output_tokens for req in requests)
+            batch_sampling_params = SamplingParams(
+                temperature=config.temperature,
+                top_p=config.top_p,
+                repetition_penalty=config.repetition_penalty,
+                frequency_penalty=config.frequency_penalty,
+                presence_penalty=config.presence_penalty,
+                max_tokens=max_tokens_in_batch,
+                skip_special_tokens=True,
+            )
 
-            for i in range(0, len(requests), config.batch_size):
-                batch = requests[i:i + config.batch_size]
-                batch_num = i // config.batch_size + 1
-                print(f"Batch {batch_num}/{total_batches}: {len(batch)} requests")
+            results = run_inference_batch(llm, requests, tokenizer, batch_sampling_params)
 
-                # Override max_tokens for each request in the batch
-                # vLLM doesn't support per-request max_tokens in batch, so we use the max
-                max_tokens_in_batch = max(req.max_output_tokens for req in batch)
-                batch_sampling_params = SamplingParams(
-                    temperature=config.temperature,
-                    top_p=config.top_p,
-                    repetition_penalty=config.repetition_penalty,
-                    frequency_penalty=config.frequency_penalty,
-                    presence_penalty=config.presence_penalty,
-                    max_tokens=max_tokens_in_batch,
-                    skip_special_tokens=True,
-                )
-
-                results = run_inference_batch(llm, batch, tokenizer, batch_sampling_params)
-                all_results.extend(results)
-
-            # Save chunk
-            chunk_name = filename.replace(".parquet", f"_rows_{start_row:07d}_{end_row:07d}.jsonl")
+            # Save chunk (named by actual row range)
+            chunk_name = filename.replace(".parquet", f"_rows_{batch_start_row:07d}_{batch_end_row:07d}.jsonl")
             temp_file = os.path.join(config.output_dir, chunk_name)
 
-            print(f"Saving {len(all_results)} results to {temp_file}")
+            print(f"Saving {len(results)} results to {temp_file}")
             with open(temp_file, "w", encoding="utf-8") as f:
-                for result in all_results:
+                for result in results:
                     f.write(json.dumps(result, ensure_ascii=False) + "\n")
 
             # Copy to bucket
@@ -308,6 +310,7 @@ if __name__ == "__main__":
     parser.add_argument("--tokenizer-path", type=str, required=True, help="Path to tokenizer")
     parser.add_argument("--hf-access-token", type=str, default=None, help="HF token if needed")
     parser.add_argument("--text-column", type=str, default="text", help="Column name for text")
+    parser.add_argument("--min-tokens", type=int, default=1024, help="Minimum tokens required to process a row")
     parser.add_argument("--max-prefill-length", type=int, default=1024, help="Max prefix tokens")
     parser.add_argument("--max-target-length", type=int, default=4096, help="Max total tokens")
     parser.add_argument("--batch-size", type=int, default=128, help="Batch size for inference")
