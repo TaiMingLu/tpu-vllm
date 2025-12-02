@@ -38,6 +38,7 @@ class Request:
     prefix_text: str
     prompt_token_ids: List[int]
     max_output_tokens: int
+    full_text: str  # Original full document
 
 
 def get_completed_row_ranges(gcs_bucket_path, parquet_basename) -> List[tuple]:
