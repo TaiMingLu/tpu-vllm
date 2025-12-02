@@ -53,12 +53,12 @@ def sample_rows_from_parquet_dataset(
 
     # Read in batches for efficiency
     batch_size = 10000
-    scanner = dataset.scanner(columns=[text_column])
+    scanner = dataset.scanner(columns=[text_column], batch_size=batch_size)
 
     current_idx = 0
     sample_set = set(sample_indices)
 
-    for batch in tqdm(scanner.to_batches(batch_size=batch_size), desc="Processing batches"):
+    for batch in tqdm(scanner.to_batches(), desc="Processing batches"):
         # Convert batch to pandas for easier handling
         df = batch.to_pandas()
 
