@@ -22,8 +22,8 @@ TEXT_COLUMN="text"
 TEACHER_MODEL_NAME="llama3.1-1b"
 MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-finewebedu-vanilla-s42"
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
-MAX_PREFILL_LENGTH=1024
-MAX_TARGET_LENGTH=2048
+MAX_PREFILL_LENGTH=256
+MAX_TARGET_LENGTH=1024
 GEN_BATCH_SIZE=1024
 TENSOR_PARALLEL_SIZE=1
 TEMPERATURE=1.2                # Lower = more focused, less random (was 1.0)
@@ -73,7 +73,7 @@ python3 -u sequence_kd_parquet_vllm.py \
   --frequency-penalty ${FREQUENCY_PENALTY} \
   --presence-penalty ${PRESENCE_PENALTY} \
   --gcs-bucket-path "${GCS_BUCKET_PATH}" \
-  --save-every-n-batches 4
+  --save-every-n-batches 1
 
 echo
 echo "================================================================================"
