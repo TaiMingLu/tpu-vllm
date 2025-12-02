@@ -23,8 +23,8 @@ TEACHER_MODEL_NAME="llama3.1-1b"
 MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-finewebedu-vanilla-s42"
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MAX_PREFILL_LENGTH=1024
-MAX_TARGET_LENGTH=4096
-GEN_BATCH_SIZE=256
+MAX_TARGET_LENGTH=2048
+GEN_BATCH_SIZE=1024
 TENSOR_PARALLEL_SIZE=1
 TEMPERATURE=1.2                # Lower = more focused, less random (was 1.0)
 TOP_P=0.9                      # Slightly more restrictive (was 0.95)
