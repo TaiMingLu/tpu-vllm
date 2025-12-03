@@ -46,8 +46,8 @@ def get_zone():
     return zone
 
 
-def get_num_workers(tpu_name, project, zone):
-    """Get number of workers in the TPU."""
+def get_worker_ips(tpu_name, project, zone):
+    """Get IP addresses of all workers in the TPU."""
     cmd = [
         "gcloud", "compute", "tpus", "tpu-vm", "describe", tpu_name,
         "--flatten=networkEndpoints[]",
@@ -57,15 +57,15 @@ def get_num_workers(tpu_name, project, zone):
     ]
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        # Count number of IP addresses (one per worker)
-        num_workers = len([line for line in result.stdout.strip().split('\n') if line.strip()])
-        if num_workers == 0:
+        # Get IP addresses (one per worker)
+        ips = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+        if len(ips) == 0:
             sys.exit(f"Error: TPU {tpu_name} has no workers")
-        return num_workers
+        return ips
     except subprocess.CalledProcessError as e:
         sys.exit(f"Error: Failed to describe TPU {tpu_name}: {e.stderr}")
     except ValueError:
-        sys.exit(f"Error: Could not parse number of workers from gcloud output")
+        sys.exit(f"Error: Could not parse worker IPs from gcloud output")
 
 
 def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
@@ -117,24 +117,28 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
     return tar_name
 
 
-def run_command_on_workers(tpu_name, command, project, zone, num_workers, tar_name=None):
+def run_command_on_workers(tpu_name, command, project, zone, worker_ips, tar_name=None):
     """Run command on all workers simultaneously."""
+    num_workers = len(worker_ips)
+    ray_head_ip = worker_ips[0]  # Worker 0 is the Ray head
     print(f"Running command on {num_workers} workers...")
+    print(f"Ray head IP: {ray_head_ip}")
 
-    # Build remote command
-    if tar_name:
-        # Extract tarball and run command
-        remote_cmd = f"mkdir -p ~/work-dir && cd ~/work-dir && tar -xzf ~/{tar_name} && {command}"
-    else:
-        remote_cmd = command
-
-    # SSH to all workers with small delays to avoid rate limiting
+    # SSH to all workers
     processes = []
     log_files = []
 
     for worker in range(num_workers):
         log_file = f"/tmp/multihost_worker_{worker}.log"
         log_files.append(log_file)
+
+        # Build remote command with worker-specific environment variables
+        env_vars = f"export WORKER_ID={worker} && export RAY_HEAD_IP={ray_head_ip}"
+        if tar_name:
+            # Extract tarball and run command
+            remote_cmd = f"{env_vars} && mkdir -p ~/work-dir && cd ~/work-dir && tar -xzf ~/{tar_name} && {command}"
+        else:
+            remote_cmd = f"{env_vars} && {command}"
 
         cmd = [
             "gcloud", "alpha", "compute", "tpus", "tpu-vm", "ssh", tpu_name,
@@ -205,9 +209,11 @@ def main():
     print(f"Zone: {zone}")
     print()
 
-    # Get number of workers
-    num_workers = get_num_workers(args.tpu_name, project, zone)
+    # Get worker IPs
+    worker_ips = get_worker_ips(args.tpu_name, project, zone)
+    num_workers = len(worker_ips)
     print(f"Found {num_workers} workers")
+    print(f"Worker IPs: {worker_ips}")
     print()
 
     # Copy script directory if provided
@@ -219,7 +225,7 @@ def main():
         print()
 
     # Run command
-    return_code = run_command_on_workers(args.tpu_name, args.command, project, zone, num_workers, tar_name)
+    return_code = run_command_on_workers(args.tpu_name, args.command, project, zone, worker_ips, tar_name)
 
     return return_code
 

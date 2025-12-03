@@ -1,13 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-# Combined setup + run script for multi-host TPU
+# Combined setup + run script for multi-host TPU with Ray
 # This runs on each worker and does setup if needed, then runs generation
 #
 # Environment variables expected:
 #   TENSOR_PARALLEL_SIZE - total chips across all hosts
+#   RAY_HEAD_IP - IP address of Ray head node (worker 0)
+#   WORKER_ID - which worker this is (0, 1, 2, ...)
 
 echo "=== Worker $(hostname) starting ==="
+echo "WORKER_ID: ${WORKER_ID:-not set}"
+echo "RAY_HEAD_IP: ${RAY_HEAD_IP:-not set}"
 
 # Kill any existing processes using the TPU (from previous failed runs)
 echo "Killing any existing TPU processes..."
@@ -24,6 +28,9 @@ if [[ -n "${pids}" ]]; then
     echo "Existing processes killed"
 fi
 sudo rm -f /tmp/libtpu_lockfile
+
+# Stop any existing Ray processes
+ray stop 2>/dev/null || true
 echo "TPU is ready"
 
 # Wait for any running apt processes to finish (unattended-upgrades)
@@ -63,14 +70,43 @@ if [ "$VLLM_INSTALLED" = false ]; then
 
     # Activate and install vLLM
     source vllm_env/bin/activate
-    echo "Installing vllm-tpu..."
-    pip install vllm-tpu
+    echo "Installing vllm-tpu and ray..."
+    pip install vllm-tpu ray[default]
 
     echo "=== Setup complete ==="
 else
     echo "Skipping setup - vLLM already installed"
+    # Make sure ray is installed
+    source ~/work-dir/vllm_env/bin/activate
+    pip show ray >/dev/null 2>&1 || pip install ray[default]
 fi
 
-# Now run the generation script
-echo "=== Starting generation ==="
-bash full_loop_vllm_v6e_multi.sh
+# Activate venv for Ray
+source ~/work-dir/vllm_env/bin/activate
+
+# Start Ray cluster
+WORKER_ID=${WORKER_ID:-0}
+RAY_PORT=6379
+
+if [ "$WORKER_ID" == "0" ]; then
+    echo "=== Starting Ray head node ==="
+    ray start --head --port=$RAY_PORT --num-cpus=4 --resources='{"TPU": 4}'
+
+    # Give head node time to start
+    sleep 5
+
+    # Now run the generation script (only on head node)
+    echo "=== Starting generation ==="
+    bash full_loop_vllm_v6e_multi.sh
+else
+    echo "=== Starting Ray worker node ==="
+    # Connect to head node
+    ray start --address="${RAY_HEAD_IP}:${RAY_PORT}" --num-cpus=4 --resources='{"TPU": 4}'
+
+    # Keep alive while head node runs
+    echo "Ray worker started, waiting for head node to finish..."
+    while ray status >/dev/null 2>&1; do
+        sleep 10
+    done
+    echo "Ray cluster shut down, exiting"
+fi
