@@ -36,12 +36,12 @@ DATASET_PATH="/home/terry/gcs-bucket/HF_HOME/finewebedu/sample/100BT"
 DATA_SPLIT="train"
 TEXT_COLUMN="text"
 TEACHER_MODEL_NAME="llama3.1-1b"
-MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-finewebedu-vanilla-s42"
+MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-3b-finewebedu-vanilla-s42"
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MIN_TOKENS=1024
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=2048
-GEN_BATCH_SIZE=2000
+GEN_BATCH_SIZE=5000
 
 # Multi-host TPU configuration
 # Set this to the TOTAL number of chips across ALL hosts
