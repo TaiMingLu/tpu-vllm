@@ -77,9 +77,9 @@ mkdir -p /tmp/sequence-kd-vllm
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${GCS_BUCKET_PATH}"
 
-# JAX automatically handles multi-host coordination for TPU pods
-# No need to set JAX_COORDINATOR_ADDRESS manually - vLLM TPU backend handles it
-# All hosts will automatically synchronize via JAX distributed primitives
+# Enable multi-host mode for vLLM-TPU
+# This tells vLLM to use RayDistributedExecutor instead of UniProcExecutor
+export TPU_MULTIHOST_BACKEND=ray
 
 # Run generation (using local copy in work-dir)
 python3 -u sequence_kd_parquet_vllm.py \
