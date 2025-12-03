@@ -29,8 +29,12 @@ if [[ -n "${pids}" ]]; then
 fi
 sudo rm -f /tmp/libtpu_lockfile
 
-# Stop any existing Ray processes
-ray stop 2>/dev/null || true
+# Stop any existing Ray processes and clean up
+ray stop --force 2>/dev/null || true
+pkill -9 -f "ray::" 2>/dev/null || true
+pkill -9 -f "raylet" 2>/dev/null || true
+pkill -9 -f "gcs_server" 2>/dev/null || true
+rm -rf /tmp/ray/* 2>/dev/null || true
 echo "TPU is ready"
 
 # Wait for any running apt processes to finish (unattended-upgrades)
