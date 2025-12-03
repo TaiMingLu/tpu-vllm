@@ -16,8 +16,18 @@ while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 ; do
     sleep 5
 done
 
-# Check if venv exists, if not do setup
-if [ ! -d ~/work-dir/vllm_env ]; then
+# Check if vllm-tpu is actually installed (not just venv exists)
+VLLM_INSTALLED=false
+if [ -d ~/work-dir/vllm_env ]; then
+    source ~/work-dir/vllm_env/bin/activate
+    if pip show vllm-tpu >/dev/null 2>&1 || pip show vllm >/dev/null 2>&1; then
+        VLLM_INSTALLED=true
+        echo "vLLM already installed: $(pip show vllm-tpu 2>/dev/null | grep Version || pip show vllm 2>/dev/null | grep Version)"
+    fi
+    deactivate 2>/dev/null || true
+fi
+
+if [ "$VLLM_INSTALLED" = false ]; then
     echo "=== Setting up vLLM environment ==="
 
     # Install Python 3.12
@@ -26,6 +36,7 @@ if [ ! -d ~/work-dir/vllm_env ]; then
 
     # Create work directory
     echo "Setting up work directory..."
+    rm -rf ~/work-dir/vllm_env  # Clean up any partial install
     mkdir -p ~/work-dir
     cd ~/work-dir
 
@@ -40,7 +51,7 @@ if [ ! -d ~/work-dir/vllm_env ]; then
 
     echo "=== Setup complete ==="
 else
-    echo "vLLM environment already exists, skipping setup"
+    echo "Skipping setup - vLLM already installed"
 fi
 
 # Now run the generation script
