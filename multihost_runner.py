@@ -72,13 +72,15 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
     """Copy script directory to all workers."""
     print(f"Copying {script_dir} to {num_workers} workers...")
 
-    # Create tarball
+    # Create tarball, excluding tpu_inference package to avoid shadowing installed vllm-tpu
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     tar_name = f"script_dir_{timestamp}.tar.gz"
     tar_path = f"/tmp/{tar_name}"
 
     subprocess.run(
-        ["tar", "-czf", tar_path, "-C", script_dir, "."],
+        ["tar", "-czf", tar_path, "-C", script_dir, ".",
+         "--exclude=tpu_inference", "--exclude=.git", "--exclude=__pycache__",
+         "--exclude=*.pyc", "--exclude=.pytest_cache"],
         check=True
     )
 
