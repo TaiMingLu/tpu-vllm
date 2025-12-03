@@ -101,8 +101,14 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
         processes.append(subprocess.Popen(cmd))
 
     # Wait for all SCPs to complete
+    return_codes = []
     for p in processes:
-        p.wait()
+        return_codes.append(p.wait())
+
+    # Check if any SCP failed
+    if any(rc != 0 for rc in return_codes):
+        failed_workers = [i for i, rc in enumerate(return_codes) if rc != 0]
+        sys.exit(f"Error: SCP failed for workers {failed_workers}")
 
     # Cleanup
     os.remove(tar_path)
