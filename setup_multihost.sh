@@ -13,6 +13,11 @@ fi
 TPU_NAME=$1
 
 echo "Setting up all workers on TPU: ${TPU_NAME}"
+
+# Wait for GCP rate limit to reset (100 mutations/min)
+# This helps when jobman retries after failures
+echo "Waiting 60s for GCP rate limit to reset..."
+sleep 60
 echo
 
 # Use multihost_runner to run setup on all workers
