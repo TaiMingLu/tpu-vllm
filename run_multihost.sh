@@ -6,6 +6,12 @@ set -euo pipefail
 # Example:
 #   ./run_multihost.sh terry-v6e-32 v6e-32
 #   ./run_multihost.sh terry-v6e-32 32
+#
+# This script:
+# 1. Copies code to all workers (one SCP per worker)
+# 2. Runs setup_and_run.sh which:
+#    - Installs vLLM if not already installed
+#    - Runs generation
 
 if [ $# -lt 2 ]; then
     echo "Usage: $0 <tpu-name> <tpu-type-or-chip-count>"
@@ -33,7 +39,9 @@ echo "Running on TPU: ${TPU_NAME}"
 echo "Tensor parallel size: ${TENSOR_PARALLEL_SIZE}"
 echo
 
+# Use setup_and_run.sh which does setup (if needed) + generation in one go
+# This avoids calling multihost_runner twice which doubles API quota usage
 python3 multihost_runner.py \
     --tpu-name="${TPU_NAME}" \
-    --command="export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE} && bash full_loop_vllm_v6e_multi.sh" \
+    --command="export TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE} && bash setup_and_run.sh" \
     --script-dir=.
