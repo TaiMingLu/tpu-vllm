@@ -85,7 +85,8 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
         check=True
     )
 
-    # SCP to all workers in parallel
+    # SCP to all workers with small delays to avoid rate limiting
+    # GCP has 100 mutations/minute limit for TPU API
     processes = []
     for worker in range(num_workers):
         cmd = [
@@ -99,6 +100,9 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
             "--quiet"
         ]
         processes.append(subprocess.Popen(cmd))
+        # Small delay between launching SCPs to avoid rate limiting
+        if worker < num_workers - 1:
+            time.sleep(1)
 
     # Wait for all SCPs to complete
     return_codes = []
@@ -128,7 +132,7 @@ def run_command_on_workers(tpu_name, command, project, zone, num_workers, tar_na
     else:
         remote_cmd = command
 
-    # SSH to all workers in parallel
+    # SSH to all workers with small delays to avoid rate limiting
     processes = []
     log_files = []
 
@@ -153,6 +157,9 @@ def run_command_on_workers(tpu_name, command, project, zone, num_workers, tar_na
             log = open(log_file, "w")
 
         processes.append(subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT))
+        # Small delay between launching SSHs to avoid rate limiting
+        if worker < num_workers - 1:
+            time.sleep(1)
 
     # Monitor progress
     start_time = time.time()
