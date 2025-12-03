@@ -55,7 +55,7 @@ PRESENCE_PENALTY=1.0           # Strong presence penalty (was 0.5, try 1.0)
 MAX_EXAMPLES=20000000
 
 OUTPUT_DIR="/tmp/sequence-kd-vllm/output"
-GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm-T50BS42_new"
+GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm-A3BT50BS42"
 
 printf '\n=== Sequence KD Config (vLLM Multi-Host) ===\n'
 printf 'Run name: %s\n' "$RUN_NAME"
