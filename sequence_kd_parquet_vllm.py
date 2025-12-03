@@ -139,12 +139,14 @@ def main(config):
 
     # Initialize vLLM model
     print(f"\nInitializing vLLM model from {config.model_path}")
+    # Use Ray for distributed execution when tensor_parallel_size > local chips
     llm = LLM(
         model=config.model_path,
         tokenizer=config.tokenizer_path,
         tensor_parallel_size=config.tensor_parallel_size,
         max_model_len=config.max_target_length,
         trust_remote_code=True,
+        distributed_executor_backend="ray" if config.tensor_parallel_size > 4 else "mp",
     )
 
     # Setup sampling parameters

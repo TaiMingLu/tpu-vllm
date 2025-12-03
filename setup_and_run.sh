@@ -92,8 +92,13 @@ if [ "$WORKER_ID" == "0" ]; then
     echo "=== Starting Ray head node ==="
     ray start --head --port=$RAY_PORT --num-cpus=4 --resources='{"TPU": 4}'
 
-    # Give head node time to start
-    sleep 5
+    # Wait for other workers to join
+    echo "Waiting 30s for Ray workers to join..."
+    sleep 30
+
+    # Check Ray cluster status
+    echo "=== Ray cluster status ==="
+    ray status || true
 
     # Now run the generation script (only on head node)
     echo "=== Starting generation ==="
@@ -103,10 +108,9 @@ else
     # Connect to head node
     ray start --address="${RAY_HEAD_IP}:${RAY_PORT}" --num-cpus=4 --resources='{"TPU": 4}'
 
-    # Keep alive while head node runs
-    echo "Ray worker started, waiting for head node to finish..."
-    while ray status >/dev/null 2>&1; do
-        sleep 10
+    # Keep alive - just sleep forever, vLLM will use this Ray worker
+    echo "Ray worker joined cluster, waiting..."
+    while true; do
+        sleep 60
     done
-    echo "Ray cluster shut down, exiting"
 fi
