@@ -1,8 +1,7 @@
 """Simple parquet-based sequence KD data generator using vLLM.
 
-Processes parquet files one by one, generates completions from multiple models,
-and saves to JSONL. Each output line contains:
-{parquet_file, row_idx, prefix, generated_05b, generated_1b, generated_3b}
+Processes parquet files one by one, generates completions, and saves to JSONL.
+Each output line contains: {parquet_file, row_idx, prefix, generated}
 
 This is adapted from MaxText's sequence_kd_parquet.py to use vLLM instead of JetStream.
 
@@ -10,8 +9,7 @@ Example:
   python3 -m sequence_kd_parquet_vllm \
     --input-dir /path/to/parquets \
     --output-dir /path/to/output \
-    --model-paths /path/to/model1,/path/to/model2 \
-    --model-names 05b,1b \
+    --model-path /path/to/model \
     --tokenizer-path /path/to/tokenizer \
     --batch-size 128
 """
@@ -24,7 +22,7 @@ import shutil
 import random
 import uuid
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List
 
 import pandas as pd
 import pyarrow.parquet as pq
@@ -92,7 +90,7 @@ def get_missing_row_ranges(completed_ranges, total_rows, chunk_size) -> List[tup
 
 
 def run_inference_batch(llm, requests, tokenizer, sampling_params):
-    """Run inference on a batch of requests using vLLM. Returns list of generated texts."""
+    """Run inference on a batch of requests using vLLM."""
     if not requests:
         return []
 
@@ -101,10 +99,22 @@ def run_inference_batch(llm, requests, tokenizer, sampling_params):
                for req in requests]
 
     # Generate completions
+    print(f"  Generating {len(prompts)} completions...")
     outputs = llm.generate(prompts, sampling_params)
 
-    # Return just the generated texts
-    return [output.outputs[0].text.strip() for output in outputs]
+    # Format results
+    results = []
+    for req, output in zip(requests, outputs):
+        generated = output.outputs[0].text.strip()
+        results.append({
+            "parquet_file": os.path.basename(req.parquet_file),
+            "row_idx": req.row_idx,
+            "prefix_start_index": req.prefix_start_index,
+            "prefix": req.prefix_text,
+            "generated": generated,
+        })
+
+    return results
 
 
 def main(config):
@@ -116,19 +126,8 @@ def main(config):
 
     print(f"Found {len(parquet_files)} parquet files")
 
-    # Parse model paths and names
-    model_paths = config.model_paths.split(",")
-    model_names = config.model_names.split(",")
-
-    if len(model_paths) != len(model_names):
-        raise ValueError(f"Number of model paths ({len(model_paths)}) must match number of model names ({len(model_names)})")
-
-    print(f"\nWill load {len(model_paths)} models:")
-    for name, path in zip(model_names, model_paths):
-        print(f"  - {name}: {path}")
-
     # Load tokenizer
-    print(f"\nLoading tokenizer from {config.tokenizer_path}")
+    print(f"Loading tokenizer from {config.tokenizer_path}")
     if os.path.exists(config.tokenizer_path):
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             config.tokenizer_path, local_files_only=True
@@ -138,25 +137,32 @@ def main(config):
             config.tokenizer_path, token=config.hf_access_token
         )
 
-    # Initialize all vLLM models
-    models: Dict[str, LLM] = {}
-    for name, path in zip(model_names, model_paths):
-        print(f"\n{'='*60}")
-        print(f"Initializing model '{name}' from {path}")
-        print(f"{'='*60}")
-        models[name] = LLM(
-            model=path,
-            tokenizer=config.tokenizer_path,
-            tensor_parallel_size=config.tensor_parallel_size,
-            max_model_len=config.max_target_length,
-            trust_remote_code=True,
-            distributed_executor_backend="ray" if config.tensor_parallel_size > 4 else "mp",
-        )
-        print(f"Model '{name}' loaded successfully")
+    # Initialize vLLM model
+    print(f"\nInitializing vLLM model from {config.model_path}")
+    # Use Ray for distributed execution when tensor_parallel_size > local chips
+    llm = LLM(
+        model=config.model_path,
+        tokenizer=config.tokenizer_path,
+        tensor_parallel_size=config.tensor_parallel_size,
+        max_model_len=config.max_target_length,
+        trust_remote_code=True,
+        distributed_executor_backend="ray" if config.tensor_parallel_size > 4 else "mp",
+    )
+
+    # Setup sampling parameters
+    sampling_params = SamplingParams(
+        temperature=config.temperature,
+        top_p=config.top_p,
+        repetition_penalty=config.repetition_penalty,
+        frequency_penalty=config.frequency_penalty,
+        presence_penalty=config.presence_penalty,
+        max_tokens=config.max_target_length,  # Will be overridden per request
+        skip_special_tokens=True,
+    )
 
     # Shuffle parquet files for distributed processing
     random.shuffle(parquet_files)
-    print(f"\nProcessing {len(parquet_files)} files (shuffled)")
+    print(f"Processing {len(parquet_files)} files (shuffled)")
 
     # Create output directory
     os.makedirs(config.output_dir, exist_ok=True)
@@ -264,9 +270,9 @@ def main(config):
             batch_count += 1
             rows_scanned = batch_end_row - batch_start_row
             rows_skipped = rows_scanned - len(requests)
-            print(f"\nBatch {batch_count}: rows [{batch_start_row}→{batch_end_row}] scanned={rows_scanned} valid={len(requests)} skipped={rows_skipped}")
+            print(f"Batch {batch_count}: rows [{batch_start_row}→{batch_end_row}] scanned={rows_scanned} valid={len(requests)} skipped={rows_skipped}")
 
-            # Generate for this batch with each model
+            # Generate for this batch
             max_tokens_in_batch = max(req.max_output_tokens for req in requests)
             batch_sampling_params = SamplingParams(
                 temperature=config.temperature,
@@ -278,26 +284,7 @@ def main(config):
                 skip_special_tokens=True,
             )
 
-            # Generate with each model and collect results
-            all_generations: Dict[str, List[str]] = {}
-            for model_name, llm in models.items():
-                print(f"  Generating {len(requests)} completions with model '{model_name}'...")
-                generations = run_inference_batch(llm, requests, tokenizer, batch_sampling_params)
-                all_generations[model_name] = generations
-
-            # Combine results
-            results = []
-            for i, req in enumerate(requests):
-                result = {
-                    "parquet_file": os.path.basename(req.parquet_file),
-                    "row_idx": req.row_idx,
-                    "prefix_start_index": req.prefix_start_index,
-                    "prefix": req.prefix_text,
-                }
-                # Add generation from each model
-                for model_name in model_names:
-                    result[f"generated_{model_name}"] = all_generations[model_name][i]
-                results.append(result)
+            results = run_inference_batch(llm, requests, tokenizer, batch_sampling_params)
 
             # Save chunk (named by actual row range + random suffix to avoid conflicts)
             random_suffix = uuid.uuid4().hex[:8]
@@ -326,8 +313,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-dir", type=str, required=True, help="Directory containing parquet files")
     parser.add_argument("--output-dir", type=str, required=True, help="Directory to save JSONL outputs")
-    parser.add_argument("--model-paths", type=str, required=True, help="Comma-separated paths to vLLM models")
-    parser.add_argument("--model-names", type=str, required=True, help="Comma-separated model names (used as column suffixes)")
+    parser.add_argument("--model-path", type=str, required=True, help="Path to vLLM model")
     parser.add_argument("--tokenizer-path", type=str, required=True, help="Path to tokenizer")
     parser.add_argument("--hf-access-token", type=str, default=None, help="HF token if needed")
     parser.add_argument("--text-column", type=str, default="text", help="Column name for text")

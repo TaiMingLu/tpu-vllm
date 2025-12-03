@@ -35,14 +35,13 @@ RUN_NAME="sequence-kd-vllm-v6e-multi"
 DATASET_PATH="/home/terry/gcs-bucket/HF_HOME/finewebedu/sample/100BT"
 DATA_SPLIT="train"
 TEXT_COLUMN="text"
-# Multiple models for multi-model generation
-MODEL_PATHS="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-05b-finewebedu-vanilla-s42,/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-finewebedu-vanilla-s42,/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-3b-finewebedu-vanilla-s42"
-MODEL_NAMES="05b,1b,3b"
+TEACHER_MODEL_NAME="llama3.1-1b"
+MODEL_PATH="/home/terry/gcs-bucket/ckpts/pretrain_param_only_hf/llama3.1-1b-finewebedu-vanilla-s42"
 TOKENIZER_PATH="/home/terry/gcs-bucket/HF_HOME/Llama-3.1-8B"
 MIN_TOKENS=1024
 MAX_PREFILL_LENGTH=1024
 MAX_TARGET_LENGTH=2048
-GEN_BATCH_SIZE=5000
+GEN_BATCH_SIZE=2000
 
 # Multi-host TPU configuration
 # Set this to the TOTAL number of chips across ALL hosts
@@ -56,14 +55,14 @@ PRESENCE_PENALTY=1.0           # Strong presence penalty (was 0.5, try 1.0)
 MAX_EXAMPLES=20000000
 
 OUTPUT_DIR="/tmp/sequence-kd-vllm/output"
-GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm"
+GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/vllm-T50BS42_new"
 
 printf '\n=== Sequence KD Config (vLLM Multi-Host) ===\n'
 printf 'Run name: %s\n' "$RUN_NAME"
 printf 'Bucket: %s\n' "$BUCKET_NAME"
 printf 'Dataset: %s (%s)\n' "$DATASET_PATH" "$DATA_SPLIT"
-printf 'Model names: %s\n' "$MODEL_NAMES"
-printf 'Model paths: %s\n' "$MODEL_PATHS"
+printf 'Teacher model: %s\n' "$TEACHER_MODEL_NAME"
+printf 'Model path: %s\n' "$MODEL_PATH"
 printf 'Tokenizer: %s\n' "$TOKENIZER_PATH"
 printf 'Tensor parallel size: %s\n' "$TENSOR_PARALLEL_SIZE"
 printf 'Output dir: %s\n' "$OUTPUT_DIR"
@@ -86,8 +85,7 @@ export TPU_MULTIHOST_BACKEND=ray
 python3 -u sequence_kd_parquet_vllm.py \
   --input-dir "${DATASET_PATH}" \
   --output-dir "${OUTPUT_DIR}" \
-  --model-paths "${MODEL_PATHS}" \
-  --model-names "${MODEL_NAMES}" \
+  --model-path "${MODEL_PATH}" \
   --tokenizer-path "${TOKENIZER_PATH}" \
   --hf-access-token "${HF_ACCESS_TOKEN}" \
   --text-column "${TEXT_COLUMN}" \
