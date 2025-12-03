@@ -50,13 +50,15 @@ def get_num_workers(tpu_name, project, zone):
     """Get number of workers in the TPU."""
     cmd = [
         "gcloud", "compute", "tpus", "tpu-vm", "describe", tpu_name,
-        "--format=value(networkEndpoints.length())",
+        "--flatten=networkEndpoints[]",
+        "--format=csv[no-heading](networkEndpoints.ipAddress)",
         f"--project={project}",
         f"--zone={zone}"
     ]
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        num_workers = int(result.stdout.strip())
+        # Count number of IP addresses (one per worker)
+        num_workers = len([line for line in result.stdout.strip().split('\n') if line.strip()])
         if num_workers == 0:
             sys.exit(f"Error: TPU {tpu_name} has no workers")
         return num_workers
