@@ -20,6 +20,7 @@ import os
 import glob
 import shutil
 import random
+import uuid
 from dataclasses import dataclass
 from typing import List
 
@@ -206,8 +207,9 @@ def main(config):
             continue
 
         # Process file by collecting batches of valid rows (with enough tokens)
-        # We need to iterate through rows to find enough valid ones for each batch
-        current_row = 0
+        # Start from a random row to allow multiple processes to work on different parts
+        current_row = random.randint(0, total_rows - 1) if total_rows > 1 else 0
+        print(f"Starting from random row: {current_row}/{total_rows}")
         batch_count = 0
 
         while current_row < total_rows:
@@ -282,8 +284,9 @@ def main(config):
 
             results = run_inference_batch(llm, requests, tokenizer, batch_sampling_params)
 
-            # Save chunk (named by actual row range)
-            chunk_name = filename.replace(".parquet", f"_rows_{batch_start_row:07d}_{batch_end_row:07d}.jsonl")
+            # Save chunk (named by actual row range + random suffix to avoid conflicts)
+            random_suffix = uuid.uuid4().hex[:8]
+            chunk_name = filename.replace(".parquet", f"_rows_{batch_start_row:07d}_{batch_end_row:07d}_{random_suffix}.jsonl")
             temp_file = os.path.join(config.output_dir, chunk_name)
 
             print(f"Saving {len(results)} results to {temp_file}")
