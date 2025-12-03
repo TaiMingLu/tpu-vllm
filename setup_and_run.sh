@@ -9,6 +9,23 @@ set -euo pipefail
 
 echo "=== Worker $(hostname) starting ==="
 
+# Kill any existing processes using the TPU (from previous failed runs)
+echo "Killing any existing TPU processes..."
+device_name="vfio/"  # v5e/v6e use vfio
+pids=$(sudo lsof -t /dev/${device_name}* 2>/dev/null | sort -u || true)
+if [[ -n "${pids}" ]]; then
+    echo "Found existing processes: ${pids}"
+    for pid in ${pids}; do
+        echo "Killing process ${pid}..."
+        sudo kill -9 "${pid}" 2>/dev/null || true
+        # Wait for process to die
+        tail --pid="${pid}" -f /dev/null 2>/dev/null || true
+    done
+    echo "Existing processes killed"
+fi
+sudo rm -f /tmp/libtpu_lockfile
+echo "TPU is ready"
+
 # Wait for any running apt processes to finish (unattended-upgrades)
 echo "Waiting for apt lock..."
 while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 ; do
