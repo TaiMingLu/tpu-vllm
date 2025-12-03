@@ -78,9 +78,10 @@ def scp_to_workers(tpu_name, script_dir, project, zone, num_workers):
     tar_path = f"/tmp/{tar_name}"
 
     subprocess.run(
-        ["tar", "-czf", tar_path, "-C", script_dir, ".",
+        ["tar", "-czf", tar_path,
          "--exclude=tpu_inference", "--exclude=.git", "--exclude=__pycache__",
-         "--exclude=*.pyc", "--exclude=.pytest_cache"],
+         "--exclude=*.pyc", "--exclude=.pytest_cache",
+         "-C", script_dir, "."],
         check=True
     )
 
