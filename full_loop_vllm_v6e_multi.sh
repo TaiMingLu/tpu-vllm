@@ -47,15 +47,15 @@ GEN_BATCH_SIZE=5000
 # Set this to the TOTAL number of chips across ALL hosts
 # Examples: v5e-16 = 16, v5e-32 = 32, v6e-32 = 32, v5e-64 = 64
 TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE:-32}
-TEMPERATURE=0.8                # Lower = more focused, less random (was 1.0)
-TOP_P=0.9                      # Slightly more restrictive (was 0.95)
+TEMPERATURE=1                # Lower = more focused, less random (was 1.0)
+TOP_P=0.85                      # Slightly more restrictive (was 0.95)
 REPETITION_PENALTY=1.5         # Very strong penalty (was 1.2, try 1.3-1.5)
 FREQUENCY_PENALTY=1.8          # Strong frequency penalty (was 1.0, try 1.5-2.0)
 PRESENCE_PENALTY=1.0           # Strong presence penalty (was 0.5, try 1.0)
 MAX_EXAMPLES=20000000
 
 OUTPUT_DIR="/tmp/sequence-kd-vllm/output"
-GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/A3BT50BS42"
+GCS_BUCKET_PATH="/home/terry/gcs-bucket/sequence_kd_data/finewebedu/sample-100BT/A3BT50BS42-no-eos"
 
 printf '\n=== Sequence KD Config (vLLM Multi-Host) ===\n'
 printf 'Run name: %s\n' "$RUN_NAME"

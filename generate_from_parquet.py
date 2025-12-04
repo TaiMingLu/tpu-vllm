@@ -274,6 +274,7 @@ def main():
         max_tokens=args.max_tokens,
         repetition_penalty=args.repetition_penalty,
         skip_special_tokens=args.skip_special_tokens,
+        ignore_eos=True,
     )
     print(f"  Temperature: {args.temperature}")
     print(f"  Top-p: {args.top_p}")

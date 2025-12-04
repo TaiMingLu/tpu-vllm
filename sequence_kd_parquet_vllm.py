@@ -158,6 +158,7 @@ def main(config):
         presence_penalty=config.presence_penalty,
         max_tokens=config.max_target_length,  # Will be overridden per request
         skip_special_tokens=True,
+        ignore_eos=True,
     )
 
     # Shuffle parquet files for distributed processing
@@ -282,6 +283,7 @@ def main(config):
                 presence_penalty=config.presence_penalty,
                 max_tokens=max_tokens_in_batch,
                 skip_special_tokens=True,
+                ignore_eos=True,
             )
 
             results = run_inference_batch(llm, requests, tokenizer, batch_sampling_params)
