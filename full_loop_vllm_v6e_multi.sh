@@ -32,7 +32,7 @@ BUCKET_NAME=${BUCKET_NAME:-taiming_europe_west4_a}
 
 # Configuration (matching your MaxText setup exactly)
 RUN_NAME="sequence-kd-vllm-v6e-multi"
-DATASET_PATH="/home/terry/gcs-bucket/HF_HOME/finewebedu/sample/100BT"
+DATASET_PATH="/home/terry/gcs-bucket/HF_HOME/finewebedu/sample/350BT"
 DATA_SPLIT="train"
 TEXT_COLUMN="text"
 TEACHER_MODEL_NAME="llama3.1-1b"
